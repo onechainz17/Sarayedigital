@@ -123,5 +123,310 @@
       <p><span class="label">قیمت:</span> ۲٬۱۵۰٬۰۰۰ تومان</p>
       <p><span class="label">توضیحات:</span> صدای استریو با میکروفون قوی، مناسب بازی‌های آنلاین</p>
     </div>
-  </div>
+  </div>import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
+
+const API_URL = 'http://localhost:5000/api';
+
+function ProductList() {
+  const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    fetch(`${API_URL}/products?search=${search}`)
+      .then(res => res.json())
+      .then(setProducts);
+  }, [search]);
+
+  return (
+    <div>
+      <h1>محصولات</h1>
+      <input placeholder="جستجو..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20 }}>
+        {products.map(p => (
+          <Link to={`/product/${p._id}`} key={p._id} style={{ border: '1px solid #ccc', padding: 10, width: 200 }}>
+            <img src={p.image} alt={p.name} width="180" />
+            <h3>{p.name}</h3>
+            <p>{p.price} تومان</p>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProductDetail() {
+  const { id } = useParams();
+  const [product, setProduct] = useState(null);
+  const [cart, setCart] = useState(JSON.parse(localStorage.getItem('cart') || '[]'));
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetch(`${API_URL}/products/${id}`)
+      .then(res => res.json())
+      .then(setProduct);
+  }, [id]);
+
+  function addToCart() {
+    const newCart = [...cart, product];
+    setCart(newCart);
+    localStorage.setItem('cart', JSON.stringify(newCart));
+    alert('به سبد خرید اضافه شد');
+  }
+
+  if (!product) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <button onClick={() => navigate(-1)}>بازگشت</button>
+      <h1>{product.name}</h1>
+      <img src={product.image} alt={product.name} width="300" />
+      <p>{product.description}</p>
+      <p>قیمت: {product.price} تومان</p>
+      <button onClick={addToCart}>افزودن به سبد خرید</button>
+    </div>
+  );
+}
+
+function Cart() {
+  const [cart, setCart] = useState(JSON.parse(localStorage.getItem('cart') || '[]'));
+
+  function removeFromCart(index) {
+    const newCart = cart.filter((_, i) => i !== index);
+    setCart(newCart);
+    localStorage.setItem('cart', JSON.stringify(newCart));
+  }
+
+  const total = cart.reduce((sum, p) => sum + p.price, 0);
+
+  function handleCheckout() {
+    alert(`پرداخت موفق! مجموع پرداخت: ${total} تومان`);
+    setCart([]);
+    localStorage.removeItem('cart');
+  }
+
+  return (
+    <div>
+      <h1>سبد خرید</h1>
+      {cart.length === 0 ? (
+        <p>سبد خرید خالی است</p>
+      ) : (
+        <>
+          {cart.map((p, i) => (
+            <div key={i} style={{ borderBottom: '1px solid #ccc', padding: 10 }}>
+              <h3>{p.name}</h3>
+              <p>{p.price} تومان</p>
+              <button onClick={() => removeFromCart(i)}>حذف</button>
+            </div>
+          ))}
+          <h2>مجموع: {total} تومان</h2>
+          <button onClick={handleCheckout}>پرداخت (شبیه‌سازی)</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Register() {
+  const [form, setForm] = useState({ username: '', email: '', password: '' });
+  const navigate = useNavigate();
+
+  function handleChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    fetch(`${API_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message);
+        if (!data.message.includes('خطا')) navigate('/login');
+      });
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <h1>ثبت‌نام</h1>
+      <input name="username" placeholder="نام کاربری" value={form.username} onChange={handleChange} required />
+      <input type="email" name="email" placeholder="ایمیل" value={form.email} onChange={handleChange} required />
+      <input type="password" name="password" placeholder="رمز عبور" value={form.password} onChange={handleChange} required />
+      <button type="submit">ثبت‌نام</button>
+    </form>
+  );
+}
+
+function Login({ onLogin }) {
+  const [form, setForm] = useState({ email: '', password: '' });
+  const navigate = useNavigate();
+
+  function handleChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.message === 'ورود موفق') {
+          alert('خوش آمدید ' + data.user.username);
+          onLogin(data.user);
+          navigate('/');
+        } else alert(data.message);
+      });
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <h1>ورود</h1>
+      <input type="email" name="email" placeholder="ایمیل" value={form.email} onChange={handleChange} required />
+      <input type="password" name="password" placeholder="رمز عبور" value={form.password} onChange={handleChange} required />
+      <button type="submit">ورود</button>
+    </form>
+  );
+}
+
+function App() {
+  const [user, setUser] = useState(null);
+
+  function handleLogout() {
+    setUser(null);
+    alert('خروج انجام شد');
+  }
+
+  return (
+    <Router>
+      <nav style={{ display: 'flex', gap: 20, padding: 10, background: '#eee' }}>
+        <Link to="/">خانه</Link>
+        <Link to="/cart">سبد خرید</Link>
+        {user ? (
+          <>
+            <span>سلام، {user.username}</span>
+            <button onClick={handleLogout}>خروج</button>
+          </>
+        ) : (
+          <>
+            <Link to="/login">ورود</Link>
+            <Link to="/register">ثبت‌نام</Link>
+          </>
+        )}
+      </nav>
+      <Routes>
+        <Route path="/" element={<ProductList />} />
+        <Route path="/product/:id" element={<ProductDetail />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login onLogin={setUser} />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+          const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+mongoose.connect('mongodb://localhost:27017/sarayedigital', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => console.log('MongoDB connected'))
+  .catch(e => console.error('MongoDB connection error:', e));
+
+// مدل محصول
+const productSchema = new mongoose.Schema({
+  name: String,
+  description: String,
+  price: Number,
+  category: String,
+  image: String,
+  stock: Number,
+});
+const Product = mongoose.model('Product', productSchema);
+
+// مدل کاربر
+const userSchema = new mongoose.Schema({
+  username: String,
+  email: String,
+  password: String,
+});
+const User = mongoose.model('User', userSchema);
+
+// روت‌ها
+
+// دریافت لیست محصولات با جستجو و فیلتر
+app.get('/api/products', async (req, res) => {
+  const { search, category, minPrice, maxPrice } = req.query;
+  let filter = {};
+
+  if (search) filter.name = { $regex: search, $options: 'i' };
+  if (category) filter.category = category;
+  if (minPrice) filter.price = { ...filter.price, $gte: Number(minPrice) };
+  if (maxPrice) filter.price = { ...filter.price, $lte: Number(maxPrice) };
+
+  const products = await Product.find(filter);
+  res.json(products);
+});
+
+// دریافت محصول بر اساس ID
+app.get('/api/products/:id', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ message: 'محصول یافت نشد' });
+    res.json(product);
+  } catch {
+    res.status(400).json({ message: 'ID نامعتبر است' });
+  }
+});
+
+// افزودن محصول جدید (اینجا بدون احراز هویت برای نمونه)
+app.post('/api/products', async (req, res) => {
+  const product = new Product(req.body);
+  await product.save();
+  res.json(product);
+});
+
+// حذف محصول
+app.delete('/api/products/:id', async (req, res) => {
+  await Product.findByIdAndDelete(req.params.id);
+  res.json({ message: 'محصول حذف شد' });
+});
+
+// ثبت‌نام کاربر
+app.post('/api/register', async (req, res) => {
+  const { username, email, password } = req.body;
+  if (!username || !email || !password) return res.status(400).json({ message: 'همه فیلدها لازم است' });
+  const exists = await User.findOne({ email });
+  if (exists) return res.status(400).json({ message: 'این ایمیل قبلا ثبت شده' });
+
+  const user = new User({ username, email, password });
+  await user.save();
+  res.json({ message: 'ثبت‌نام با موفقیت انجام شد' });
+});
+
+// ورود کاربر
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email, password });
+  if (!user) return res.status(400).json({ message: 'ایمیل یا رمز اشتباه است' });
+  res.json({ message: 'ورود موفق', user: { id: user._id, username: user.username, email: user.email } });
+});
+
+// سرور
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 <img src="ps4.webp" alt="PS4 Slim">
+      
